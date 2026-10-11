@@ -51,6 +51,10 @@ func (self Mcp) Update(http *gin.Context) {
 	}
 	if *params.Enable && token == "" {
 		token = mcp.NewToken()
+		if token == "" {
+			self.JsonResponseWithError(http, function.ErrorMessage(define.ErrorMessageUnknow, "message", "failed to generate MCP token"), 500)
+			return
+		}
 	}
 	if err := mcp.SaveConfig(*params.Enable, token, profile); err != nil {
 		self.JsonResponseWithError(http, err, 500)

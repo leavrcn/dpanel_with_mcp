@@ -84,7 +84,10 @@ func (c *Client) loginLocked(ctx context.Context) error {
 		return &ApiError{Message: "登录请求失败: " + err.Error()}
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return &ApiError{Message: "登录响应读取失败: " + err.Error()}
+	}
 	if resp.StatusCode != http.StatusOK {
 		return &ApiError{StatusCode: resp.StatusCode, Message: "登录失败", Body: string(raw)}
 	}
@@ -182,7 +185,10 @@ func (c *Client) postOnce(ctx context.Context, path string, payload any, token s
 		return nil, &ApiError{Message: err.Error()}
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return nil, &ApiError{Message: "响应读取失败: " + err.Error()}
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, &ApiError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode), Body: string(raw)}
 	}
