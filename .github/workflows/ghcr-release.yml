@@ -40,11 +40,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/dpanel
+          # tag 名直接透传（v1.11.2-mcp -> 1.11.2-mcp）；
+          # 不用 type=semver：v1.11.2-mcp 的 -mcp 后缀不是合法 semver
           tags: |
-            # v1.11.2-mcp -> 1.11.2-mcp
-            type=semver,pattern={{version}}
-            # v1.11.2-mcp -> 1.11
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${GITHUB_REF_NAME#v}
 
       - name: Build and push (CE lite, amd64+arm64)
         uses: docker/build-push-action@v6
