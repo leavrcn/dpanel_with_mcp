@@ -5,6 +5,7 @@
 .idea/
 .git/
 .env*
+!.env.example
 .DS_Store
 LICENSE
 tests/.phpunit.result.cache

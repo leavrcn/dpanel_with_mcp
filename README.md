@@ -12,25 +12,22 @@
 
 ## 🚀 快速开始（3 分钟）
 
-### 方式 A：Docker Compose（推荐）
+### 方式 A：Docker Compose（推荐，镜像来自 GHCR）
 
 ```bash
-# 1. 生成安全 token
-export MCP_TOKEN=$(openssl rand -hex 32)
-echo "你的 MCP Token: $MCP_TOKEN"  # 保存此 token
-
-# 2. 克隆仓库
+# 1. 克隆仓库
 git clone https://github.com/leavrcn/dpanel_with_mcp.git
 cd dpanel_with_mcp
 
-# 3. 修改 compose 文件中的 token
-sed -i "s/e2e_test_token_0123456789abcdef_keep_secure/$MCP_TOKEN/g" docker-compose.yml
+# 2. 配置环境变量（token 用 openssl rand -hex 32 生成）
+cp .env.example .env
+vi .env   # 填 DP_MCP_TOKEN / DP_MCP_SERVICE_USERNAME / DP_MCP_SERVICE_PASSWORD
 
-# 4. 启动
-docker-compose up -d
+# 3. 启动（镜像自动从 ghcr.io 拉取）
+docker compose up -d
 
-# 5. 验证
-curl -H "Authorization: Bearer $MCP_TOKEN" http://localhost:8080/dpanel/mcp
+# 4. 验证
+curl -H "Authorization: Bearer $DP_MCP_TOKEN" http://localhost:8807/dpanel/mcp
 ```
 
 **预期输出**（JSON）：
@@ -53,19 +50,25 @@ curl -H "Authorization: Bearer $MCP_TOKEN" http://localhost:8080/dpanel/mcp
 ### 方式 B：手动构建
 
 ```bash
-# 构建镜像
-make build-lite
+# 构建镜像（CE lite）
+docker build --target lite \
+  -t dpanel-with-mcp:local \
+  --build-arg APP_VERSION=1.11.2-mcp \
+  --build-arg APP_FAMILY=ce \
+  -f docker/Dockerfile .
 
-# 运行容器
+# 运行容器（docker.sock 不加 :ro，面板需要管理容器）
 docker run -d \
   --name dpanel-with-mcp \
-  -p 8080:8080 \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
+  -p 8807:8080 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   -v dpanel_data:/dpanel \
   -e DP_MCP_ENABLE=true \
   -e DP_MCP_TOKEN="YOUR_TOKEN_HERE" \
   -e DP_MCP_PROFILE=read-write \
-  dpanel-with-mcp:latest
+  -e DP_MCP_SERVICE_USERNAME="YOUR_PANEL_USER" \
+  -e DP_MCP_SERVICE_PASSWORD="YOUR_PANEL_PASSWORD" \
+  dpanel-with-mcp:local
 ```
 
 ---
@@ -87,7 +90,7 @@ docker run -d \
 | 容器 | **单容器**（DPanel 本体） | DPanel + MCP 两个 |
 | 更新 | `git merge upstream` 一条命令 | 两套版本号要对齐 |
 | 配置 | 面板管理面 API / settings 表 | 环境变量 |
-| MCP 端点 | `http://<dpanel>:8080/dpanel/mcp` | `http://<mcp>:8090/mcp` |
+| MCP 端点 | `http://<dpanel>:8807/dpanel/mcp` | `http://<mcp>:8090/mcp` |
 
 ---
 
@@ -122,7 +125,7 @@ mcp:
   servers:
     dpanel:
       transport: http
-      url: http://localhost:8080/dpanel/mcp
+      url: http://localhost:8807/dpanel/mcp
       headers:
         Authorization: "Bearer YOUR_TOKEN_HERE"
 ```
@@ -153,7 +156,7 @@ docker-compose --env-file .env up -d
 ### 网络隔离
 ```yaml
 ports:
-  - "127.0.0.1:8080:8080"  # 仅本机
+  - "127.0.0.1:8807:8080"  # 仅本机
 ```
 
 ### 权限最小化
