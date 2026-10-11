@@ -1,152 +1,85 @@
-<h1 align="center">
-<img src="https://cdn.w7.cc/dpanel/dpanel-logo.png" alt="DPanel" width="500" />
-</h1>
-<h4 align="center"> 轻量化容器管理面板；优雅的管理 Docker、Podman 容器。 </h4>
+# dpanel_with_mcp
 
-<div align="center">
+**DPanel with built-in MCP Server** —— 把 MCP（Model Context Protocol）直接内置进 DPanel 的单容器发行版。AI Agent 用自然语言管理 Docker：容器、compose、镜像、网络、卷、文件、计划任务等 99 个工具，无需第二容器。
 
-[![GitHub stars](https://img.shields.io/github/stars/donknap/dpanel.svg)](https://github.com/donknap/dpanel) &nbsp;
-[![GitHub latest release](https://img.shields.io/github/v/release/donknap/dpanel)](https://github.com/donknap/dpanel/releases) &nbsp;
-[![GitHub latest commit](https://img.shields.io/github/last-commit/donknap/dpanel.svg)](https://github.com/donknap/dpanel/commits/master/) &nbsp;
-[![Build Status](https://github.com/donknap/dpanel/actions/workflows/release.yml/badge.svg)](https://github.com/donknap/dpanel/actions) &nbsp;
-[![Docker Pulls](https://img.shields.io/docker/pulls/dpanel/dpanel)](https://hub.docker.com/r/dpanel/dpanel/tags) &nbsp;
-<a href="https://hellogithub.com/repository/c69089b776704985b989f98626de977a" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=c69089b776704985b989f98626de977a&claim_uid=ekhLfDOxR5U0mVw&theme=small" alt="Featured｜HelloGitHub" /></a>
+基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块，照 `app/agent` 先例）。
 
+## 与外挂方案的区别
 
-<p align="center">
-  <a href="/README.md"><img alt="中文(简体)" src="https://img.shields.io/badge/中文(简体)-1677ff?style=for-the-badge"></a>
-  <a href="/docs/README_EN.md"><img alt="English" src="https://img.shields.io/badge/English-1677ff?style=for-the-badge"></a>
-</p>
+| | dpanel_with_mcp（本仓） | 外挂 MCP 容器 |
+|---|---|---|
+| 容器 | **单容器**（DPanel 本体） | DPanel + MCP 两个 |
+| 更新 | `git merge upstream` 一条命令 | 两套版本号要对齐 |
+| 配置 | 面板管理面 API / settings 表 | 环境变量 |
+| MCP 端点 | `http://<dpanel>:8807/dpanel/mcp` | `http://<mcp>:8090/mcp` |
 
-------------------------------
+## 快速开始
 
-[**官网**](https://dpanel.cc/) &nbsp; |
-&nbsp; [**演示**](https://demo.dpanel.cc) &nbsp; |
-&nbsp; [**文档**](https://dpanel.cc/#/zh-cn/install/docker) &nbsp; |
-&nbsp; [**Pro版**](https://dpanel.cc/#/zh-cn/manual/pro) &nbsp; |
-&nbsp; [**交流群**](https://qm.qq.com/q/2v4x9x8q4k) &nbsp; |
-&nbsp; [**赞助**](https://afdian.com/a/dpanel) &nbsp;
+```bash
+# 构建（须传 APP_FAMILY=ce，产物名与 COPY 匹配）
+docker build -f docker/Dockerfile --build-arg APP_FAMILY=ce -t dpanel_with_mcp:latest .
 
-</div>
-
-### 专业版（PRO）
-
-专业版仅是社区版的一个增强和补充，对于通用的、广泛的功能需求不会收录到专业版中。
-针对社区版中的部分功能进行强化、升级或是一些极其个性化的需求功能。
-
-感谢大家的支持与厚爱，希望 DPanel 可以小小的为 Docker 中文圈带来一些惊喜。
-
-🚀🚀🚀 [功能介绍及对比](https://dpanel.cc/pro) 🚀🚀🚀
-
-
-### 开始使用
-
-> [!IMPORTANT]  
-> MacOS 下通过 **/Users/用户/.docker/run/docker.sock:/var/run/docker.sock** 挂载 sock 文件
-
-#### 标准版
-
-```
-docker run -d --name dpanel --restart=always \
- -p 80:80 -p 443:443 -p 8807:8080 -e APP_NAME=dpanel \
- -v /var/run/docker.sock:/var/run/docker.sock \
- -v /home/dpanel:/dpanel dpanel/dpanel:latest
+docker run -d --name dpanel \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v dpanel-data:/dpanel \
+  -p 8807:8080 \
+  -e APP_NAME=dpanel \
+  -e DP_JWT_SECRET=<固定随机串> \
+  dpanel_with_mcp:latest
 ```
 
-#### 精简版 Lite
+### 启用 MCP
 
-lite 版去掉了域名转发相关，需要自行转发域名绑定容器，不需要绑定 80 及 443 端口
+MCP 默认关闭。启用方式二选一：
 
-```
-docker run -d --name dpanel --restart=always \
- -p 8807:8080 -e APP_NAME=dpanel \
- -v /var/run/docker.sock:/var/run/docker.sock \
- -v /home/dpanel:/dpanel dpanel/dpanel:lite
-```
+**方式 A：环境变量（compose 部署）**
 
-#### 集成脚本
-
-> 支持 Debian Ubuntu Alpine，其它发行版未进行测试，请提交 Issue
-
-```
-curl -sSL https://dpanel.cc/quick.sh -o quick.sh && sudo bash quick.sh
+```yaml
+environment:
+  DP_MCP_ENABLE: "true"
+  DP_MCP_TOKEN: "<openssl rand -hex 32>"
+  DP_MCP_PROFILE: read-write        # read-only | read-write | admin
+  DP_MCP_SERVICE_USERNAME: admin    # 回环调用 DPanel API 的面板账号
+  DP_MCP_SERVICE_PASSWORD: <密码>
 ```
 
-#### 镜像说明
+**方式 B：管理面 API（面板 JWT）**
 
-| 版本  |  构建系统  | 地址                                                                                                    |       说明       |
-|:---:|:------:|:------------------------------------------------------------------------------------------------------|:--------------:|
-| 标准版 | Alpine | dpanel/dpanel:latest <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel:latest                     |  包含域名转及证书申请功能  |
-|  ^  | Alpine | dpanel/dpanel-pe:latest <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel-pe:latest               |      专业版       |
-|  ^  | Debian | dpanel/dpanel:latest-debian <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel:latest-debian       | 基于 Debian 系统构建 |
-|  ^  | Debian | dpanel/dpanel-pe:latest-debian <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel-pe:latest-debian |      专业版       |
-| 精简版 | Alpine | dpanel/dpanel:lite <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel:lite                         |   只包含容器管理功能    |
-|  ^  | Alpine | dpanel/dpanel-pe:lite <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel-pe:lite                   |      专业版       |
-|  ^  | Debian | dpanel/dpanel:lite-debian <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel:lite-debian           | 基于 Debian 系统构建 |
-|  ^  | Debian | dpanel/dpanel-pe:lite-debian <br/> registry.cn-hangzhou.aliyuncs.com/dpanel/dpanel-pe:lite-debian     |      专业版       |
+```bash
+curl -s http://127.0.0.1:8807/dpanel/api/common/mcp/update \
+  -H "Authorization: Bearer <面板JWT>" -H 'Content-Type: application/json' \
+  -d '{"enable":true,"profile":"read-write"}'
+# 返回后 token 自动生成，用 get-status 查看（重启容器生效）
+```
 
+### MCP 客户端接入
 
-#### 为爱发电
+```
+URL: http://<dpanel-host>:<port>/dpanel/mcp
+Header: Authorization: Bearer <token>
+```
 
-如果此项目对你所有帮助，并希望我继续下去，请考虑赞助我为爱发电！感谢所有的爱和支持。
+## 安全模型
 
-##### 爱发电平台
-[https://afdian.com/a/dpanel](https://afdian.com/a/dpanel)
+- **Bearer 门禁 fail-closed**：未配 token = 全部 401；无/错 token 一律 401
+- **三级能力分级**：`read-only` / `read-write` / `admin`（`DP_MCP_PROFILE`）
+- **破坏性操作 confirm**：delete/prune/restore/destroy 类必须显式 `confirm=true`
+- **递归脱敏**：password/token/JWT 键名与文本全部掩码
+- **内部回环**：MCP 工具经 `127.0.0.1` 调 DPanel 自身 API（service 凭据存 settings 表，不暴露）
 
-##### 微信打赏
+## 跟随上游
 
-<img src="https://github.com/donknap/dpanel-docs/blob/vitepress/storage/image/wx-sponsor.jpg?raw=true" width="300" />
+```bash
+git fetch upstream
+git merge upstream/master
+go test ./app/mcp/...   # 路由契约测试：上游改路由立刻红
+```
 
-#### 交流群
+## 验证
 
-QQ: 837583876
+- 契约单测全过（注册表完整性/路由契约/参数契约/归一化/门禁/脱敏）
+- 真实容器 E2E 20/20（`scripts/e2e_native.py`）：握手、99 工具、9 只读工具回环真实数据、归一化、fail-closed、脱敏、负例
 
-<img src="https://github.com/donknap/dpanel-docs/blob/master/storage/image/qq.png?raw=true" width="300" />
+## License
 
-#### 赞助 
-- ##### 莱卡云-专业云计算服务器提供商
-    <a href="https://www.lcayun.com/actcloud.html?from=dpanel" target="_blank"><img width="200" src="https://www.lcayun.com/upload/banner/2023-10/11/169700642979539.png" /></a>
-- ##### Developed using JetBrains IDEs.
-    [![JetBrains logo.](https://resources.jetbrains.com/storage/products/company/brand/logos/jetbrains.svg)](https://jb.gg/OpenSource)
-  
-#### 感谢贡献人员
-
-[![Contributors](https://contrib.rocks/image?repo=donknap/dpanel)](https://github.com/donknap/dpanel/graphs/contributors)
-
-#### 界面预览
-
-###### pro 自定义皮肤
-
-![pro-1](https://cdn.w7.cc/dpanel/pro-1.png)
-
-###### 概览
-![home.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/home.png?t=1)
-###### 容器管理
-![app-list.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/app-list.png)
-###### 文件管理
-![app-file.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/app-file.png)
-###### 镜像管理
-![image-list.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/image-list.png)
-###### 创建镜像
-![image-create.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/image-create.png)
-###### 创建Compose
-![compose-create.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/compose-create.png)
-###### 部署Compose
-![compose-deploy.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/compose-deploy.png)
-###### 系统管理
-![system-basic.png](https://raw.githubusercontent.com/donknap/dpanel-docs/vitepress/storage/image/system-basic.png)
-
-#### 相关仓库
-
-- 镜像构建基础模板 https://github.com/donknap/dpanel-base-image
-- 文档 https://github.com/donknap/dpanel-docs
-
-#### 相关组件
-
-- Rangine 开发框架 https://github.com/we7coreteam/w7-rangine-go-skeleton
-- Docker Sdk https://github.com/docker/docker
-- React & UmiJs
-- Ant Design & Ant Design Pro & Ant Design Charts
-
-#### Star History
-[![Star History Chart](https://api.star-history.com/svg?repos=donknap/dpanel&type=Timeline)](https://star-history.com/#donknap/dpanel&Timeline)
+继承上游 DPanel 许可证（见 LICENSE）。
