@@ -1,0 +1,191 @@
+# DPanel with MCP (Model Context Protocol) - Docker Compose 部署示例
+# 
+# 快速开始：
+#   docker-compose up -d
+#
+# 前置要求：
+#   - Docker 20.10+
+#   - Docker Compose v2+
+#   - Docker Daemon 可用（volume 挂载 /var/run/docker.sock）
+
+version: '3.8'
+
+services:
+  dpanel:
+    # 镜像：dpanel_with_mcp 带内置 MCP server（99 个工具）
+    image: dpanel-with-mcp:v1.11.2-mcp
+    container_name: dpanel-with-mcp
+    
+    ports:
+      # 面板 Web UI（DPanel 原生）
+      - "8080:8080"
+    
+    environment:
+      # ==================== DPanel 基础配置 ====================
+      # 时区
+      TZ: Asia/Shanghai
+      
+      # 数据存储路径（容器内默认 /dpanel）
+      DP_SYSTEM_STORAGE_LOCAL_PATH: /dpanel
+      
+      # SQLite 数据库位置
+      DP_DB_DATABASE: /dpanel/dpanel.db
+      
+      # ACME 证书配置（用于 HTTPS）
+      DP_ACME_CONFIG_HOME: /dpanel/acme
+      
+      # 在容器内运行标记
+      DP_RUN_IN_CONTAINER: 1
+      
+      # ==================== MCP 配置（可选）====================
+      # 启用 MCP server
+      # 方式 A: 环境变量（推荐 compose 部署）
+      DP_MCP_ENABLE: "true"
+      
+      # MCP Bearer token（32 字节 hex，必须）
+      # 生成：head -c 32 /dev/urandom | xxd -p
+      DP_MCP_TOKEN: "e2e_test_token_0123456789abcdef_keep_secure"
+      
+      # MCP 能力分级：read-only / read-write / admin
+      # - read-only(45 工具)：查询、导出、列表
+      # - read-write(33 工具)：启动/停止/创建/更新
+      # - admin(21 工具)：删除、销毁、清理（=破坏性）
+      DP_MCP_PROFILE: "read-write"
+      
+      # MCP 服务身份（回环调用 DPanel API 用）
+      # 若不指定，需通过管理面 API 设置（但当前有 bug，recommend env）
+      DP_MCP_SERVICE_USERNAME: "founder"
+      DP_MCP_SERVICE_PASSWORD: "admin123"
+      
+      # MCP 自身地址（回环调用 DPanel）
+      DP_MCP_SELF_URL: "http://127.0.0.1:8080"
+      
+      # ==================== 可选配置 ====================
+      # 应用端口（默认 8080）
+      APP_SERVER_PORT: 8080
+      
+      # Docker daemon 地址（容器挂载 /var/run/docker.sock 时自动可用）
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+    
+    volumes:
+      # 挂载 Docker daemon socket（关键：MCP 工具需用容器身份调用 docker API）
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      
+      # 数据持久化
+      - dpanel_data:/dpanel
+    
+    # 权限配置（可访问 docker.sock）
+    security_opt:
+      - no-new-privileges:true
+    
+    # 重启策略
+    restart: unless-stopped
+    
+    # 日志配置
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "mcp-enabled=true"
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    
+    # 网络配置
+    networks:
+      - dpanel-network
+
+volumes:
+  # 数据持久化卷（含数据库、配置、证书等）
+  dpanel_data:
+    driver: local
+
+networks:
+  # 自定义网络
+  dpanel-network:
+    driver: bridge
+
+# ================================================================
+# 使用说明
+# ================================================================
+# 
+# 1. 启动容器
+#    docker-compose up -d
+#
+# 2. 查看 MCP 端点状态
+#    curl -H "Authorization: Bearer e2e_test_token_0123456789abcdef_keep_secure" \
+#         http://localhost:8080/dpanel/mcp
+#
+# 3. 访问 DPanel Web 面板
+#    http://localhost:8080
+#    用户：founder / 密码：admin123（默认）
+#
+# 4. 在 Hermes 中注册 MCP server
+#    # 1. 更新 ~/.hermes/config.yaml
+#    mcp:
+#      servers:
+#        dpanel:
+#          command: curl
+#          args:
+#            - -X
+#            - POST
+#            - -H
+#            - "Authorization: Bearer e2e_test_token_0123456789abcdef_keep_secure"
+#            - http://localhost:8080/dpanel/mcp
+#    
+#    # 2. 重启 Hermes
+#    hermes restart
+#    
+#    # 3. 测试连接
+#    hermes mcp test dpanel
+#    hermes mcp call dpanel dpanel_container_list
+#
+# 5. 停止容器
+#    docker-compose down
+#
+# 6. 查看日志
+#    docker-compose logs -f dpanel
+#
+# 7. 进入容器 shell
+#    docker-compose exec dpanel bash
+#
+# ================================================================
+# 生产建议
+# ================================================================
+#
+# • Token 安全
+#   - 生成强 token：openssl rand -hex 32
+#   - 不要在 git 中提交 token
+#   - 使用 .env 文件存密钥：
+#     DP_MCP_TOKEN=${MCP_TOKEN}
+#     # 启动时：export $(cat .env | xargs) && docker-compose up
+#
+# • 权限最小化
+#   - 默认 read-write 可启停/更新容器
+#   - 生产环境推荐 read-only（仅查询）
+#   - 若需管理员操作，通过管理面或命令行（不暴露给 Agent）
+#
+# • 网络隔离
+#   - MCP 端点不应暴露到公网
+#   - 使用防火墙限制 8080 访问（仅内网或 Hermes 主机）
+#   - 可部署反向代理（nginx）在前面做认证/TLS
+#
+# • 备份与恢复
+#   - 数据存于 dpanel_data 卷
+#   - 备份：docker run --rm -v dpanel_data:/data -v $(pwd):/backup \
+#     alpine tar czf /backup/dpanel_data.tar.gz -C /data .
+#   - 恢复：docker run --rm -v dpanel_data:/data -v $(pwd):/backup \
+#     alpine tar xzf /backup/dpanel_data.tar.gz -C /data
+#
+# • 多实例（不同端口/token）
+#   - 复制此文件为 docker-compose-prod.yml
+#   - 修改 service 名、container_name、ports、DP_MCP_TOKEN
+#   - 启动：docker-compose -f docker-compose-prod.yml up -d
+#
+# ================================================================
