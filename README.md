@@ -1,16 +1,14 @@
 # DPanel with MCP
 
-**DPanel with built-in MCP Server** —— 把 MCP（Model Context Protocol）直接内置进 DPanel 的单容器发行版。AI Agent 用自然语言管理 Docker：容器、compose、镜像、网络、卷、文件、计划任务等 99 个工具，无需第二容器。
+**DPanel with built-in MCP Server** —— 把 MCP（Model Context Protocol）直接内置进 DPanel 的单容器发行版。AI Agent 用自然语言管理 Docker：容器、compose、镜像、网络、卷、文件、计划任务等 99 个工具。
 
-基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块，照 `app/agent` 先例）。
+基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块）。
 
-**版本**: v1.11.4-mcp  
-**状态**: ✅ 生产就绪（含关键安全修复）  
-**评分**: 8.5/10 ★ 生产就绪度 95%
+**版本**: v1.11.4-mcp
 
 ---
 
-## 🚀 快速开始（3 分钟）
+## 🚀 快速开始
 
 ### 方式 A：Docker Compose（推荐，镜像来自 GHCR）
 
@@ -27,7 +25,7 @@ vi .env   # 填 DP_MCP_TOKEN / DP_MCP_SERVICE_USERNAME / DP_MCP_SERVICE_PASSWORD
 docker compose up -d
 
 # 4. 验证
-curl -H "Authorization: Bearer $DP_MCP_TOKEN" http://localhost:8807/dpanel/mcp
+curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
 ```
 
 **预期输出**（JSON）：
@@ -71,6 +69,8 @@ docker run -d \
   dpanel-with-mcp:local
 ```
 
+> 升级/回滚：改 compose 里的 `image:` tag（与仓库 Release 一一对应）后 `docker compose up -d`；数据卷独立，不受影响。
+
 ---
 
 ## 🎯 核心特性
@@ -78,19 +78,7 @@ docker run -d \
 - **99 个工具**：容器/镜像/网络/卷/compose/计划任务/文件管理
 - **三级权限**：read-only(45) / read-write(78) / admin(99)
 - **安全鉴权**：Bearer token + fail-closed + 25 个敏感键脱敏
-- **并发安全**：互斥锁正确、JWT 缓存稳妥、401 透明重试
-- **单容器**：内置 MCP server，无需第二容器
-
----
-
-## 📊 与外挂方案的区别
-
-|  | dpanel_with_mcp（本仓） | 外挂 MCP 容器 |
-| --- | --- | --- |
-| 容器 | **单容器**（DPanel 本体） | DPanel + MCP 两个 |
-| 更新 | `git merge upstream` 一条命令 | 两套版本号要对齐 |
-| 配置 | 面板管理面 API / settings 表 | 环境变量 |
-| MCP 端点 | `http://<dpanel>:8807/dpanel/mcp` | `http://<mcp>:8090/mcp` |
+- **单容器**：MCP server 内置于 DPanel 本体，`git merge upstream` 一条命令跟随上游
 
 ---
 
@@ -186,36 +174,18 @@ DP_MCP_PROFILE: "read-write"
 
 ---
 
-## 📚 文档
-
-完整文档见 [GitHub Wiki](https://github.com/leavrcn/dpanel_with_mcp/wiki)（建设中）
-
-快速索引：
-- **快速开始**：见上方
-- **配置参考**：见 `docker-compose.yml` 注释
-- **工具清单**：99 个工具详见 MCP 端点 `/tools/list`
-- **故障排查**：见 Issues
-
----
-
 ## 🔧 开发与测试
 
-### 运行测试
-
 ```bash
-# 单元测试
-cd app/mcp
-go test -v ./...
+# 单元测试（MCP 子模块）
+cd app/mcp && go test -v ./...
 
-# E2E 测试
+# E2E 测试（需运行中的容器，MCP_TOKEN 环境变量）
 python3 scripts/e2e_native.py
-```
 
-### 构建镜像
-
-```bash
-make build-lite  # 构建 lite 版本
-make build-full  # 构建 full 版本（含前端）
+# 构建镜像
+make build-lite  # lite 版
+make build-full  # full 版（含前端）
 ```
 
 ---
@@ -224,48 +194,24 @@ make build-full  # 构建 full 版本（含前端）
 
 ### v1.11.4-mcp (2026-10-13)
 
-**新功能**：
-- ✅ MCP service 凭据可经管理面 API 录入：`/common/mcp/update` 新增可选参数
-  `serviceUsername`/`servicePassword`，存 settings 表（mcp/service）。
-  部署可不设 `DP_MCP_SERVICE_*` 环境变量，首登设 founder 后经 API 录入即可
+- service 凭据可经管理面 API 录入：`/common/mcp/update` 新增可选参数
+  `serviceUsername`/`servicePassword`，存 settings 表。部署可不设
+  `DP_MCP_SERVICE_*` 环境变量，首登设 founder 后经 API 录入即可
   （环境变量仍优先于持久化值）
-
-**修复**：
-- ✅ `serverInfo.version` 硬编码 `1.11.2` 未随版本更新——改为与发布版本对齐
-- ✅ README 配置表：service 凭据由「推荐设置」更正为「必填（env 或 API 二选一）」
+- `serverInfo.version` 硬编码 `1.11.2` 未随版本更新——改为与发布版本对齐
+- README 修正：service 凭据标注、MCP 客户端接入命令、protocolVersion
 
 ### v1.11.3-mcp (2026-10-13)
 
-**上游同步**：
-- ✅ 合并 donknap/dpanel master（`ce4eb322` + `798db93d`，即上游 v1.11.1 最终态）
-- ✅ sock pipe 代理监听复用优化、scoop 安装支持、环境变量统一
-- ✅ 合并零冲突；MCP 模块（`app/mcp/`）与上游改动零重叠
-
-**验证**：
-- ✅ go vet 通过（MCP 子模块）
-- ✅ 单测 17/17 PASS
-- ✅ Docker 镜像构建通过（CE lite）
+- 合并上游 donknap/dpanel master（`ce4eb322` + `798db93d`，即上游 v1.11.1
+  最终态）：sock pipe 代理监听复用优化、scoop 安装支持、环境变量统一
+- 合并零冲突；MCP 模块与上游改动零重叠
 
 ### v1.11.2-mcp (2026-10-12)
 
-**修复**：
-- ✅ 问题 #2：NewToken 失败检查（防止无门禁）
-- ✅ 问题 #3：HTTP ReadAll 错误处理（清晰诊断）
-
-**验证**：
-- ✅ go vet 通过
-- ✅ 单测 17/17 PASS
-- ✅ E2E 20/20 PASS
-
-**改进**：
-- 错误处理完整性：65% → 95%
-- 生产就绪度：80% → 95%
-
----
-
-## 🤝 贡献
-
-欢迎贡献！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)（待补充）
+- NewToken 失败检查（防止无门禁）
+- MCP client HTTP ReadAll 错误处理（清晰诊断）
+- 首个内置版发布
 
 ---
 
@@ -279,25 +225,7 @@ make build-full  # 构建 full 版本（含前端）
 
 - **上游 DPanel**: https://github.com/donknap/dpanel
 - **MCP 协议**: https://modelcontextprotocol.io
-- **Hermes Agent**: https://hermes-agent.nousresearch.com
 
 ---
 
-## ❓ 常见问题
-
-### Q: 为什么选择单容器而非外挂 MCP？
-A: 单容器架构更新更简单（一条命令 merge upstream），配置更统一（面板管理），部署更轻量（一个镜像）。
-
-### Q: 安全吗？
-A: 是的。采用 Bearer token 鉴权、fail-closed 权限模型、25 个敏感键脱敏、JWT 正则过滤。已通过专业安全审查（评分 8/10）。
-
-### Q: 性能如何？
-A: 镜像仅 91 MB，并发安全（互斥锁正确），401 透明重试，JWT 缓存优化。E2E 测试 20/20 通过。
-
-### Q: 如何回滚？
-A: 停止容器，切换到上一版本 tag，重新部署即可。数据卷独立，不受影响。
-
----
-
-**维护者**: leavrcn  
-**最后更新**: 2026-10-12
+**维护者**: leavrcn
