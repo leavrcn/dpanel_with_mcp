@@ -4,7 +4,7 @@
 
 基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块，照 `app/agent` 先例）。
 
-**版本**: v1.11.3-mcp  
+**版本**: v1.11.4-mcp  
 **状态**: ✅ 生产就绪（含关键安全修复）  
 **评分**: 8.5/10 ★ 生产就绪度 95%
 
@@ -35,13 +35,13 @@ curl -H "Authorization: Bearer $DP_MCP_TOKEN" http://localhost:8807/dpanel/mcp
 {
   "jsonrpc": "2.0",
   "result": {
-    "protocolVersion": "2024-11-05",
+    "protocolVersion": "2025-03-26",
     "capabilities": {
       "tools": { "list_changed": true }
     },
     "serverInfo": {
       "name": "dpanel-mcp",
-      "version": "1.11.3-mcp"
+      "version": "1.11.4-mcp"
     }
   }
 }
@@ -53,7 +53,7 @@ curl -H "Authorization: Bearer $DP_MCP_TOKEN" http://localhost:8807/dpanel/mcp
 # 构建镜像（CE lite）
 docker build --target lite \
   -t dpanel-with-mcp:local \
-  --build-arg APP_VERSION=1.11.3-mcp \
+  --build-arg APP_VERSION=1.11.4-mcp \
   --build-arg APP_FAMILY=ce \
   -f docker/Dockerfile .
 
@@ -103,8 +103,15 @@ docker run -d \
 | `DP_MCP_ENABLE` | ✅ | - | 启用 MCP（`"true"`/`"false"`） |
 | `DP_MCP_TOKEN` | ✅ | - | Bearer token（32 字节 hex） |
 | `DP_MCP_PROFILE` | ❌ | `read-write` | 权限级别（见下） |
-| `DP_MCP_SERVICE_USERNAME` | ⚠️ | - | DPanel 账号（推荐设置） |
-| `DP_MCP_SERVICE_PASSWORD` | ⚠️ | - | DPanel 密码（推荐设置） |
+| `DP_MCP_SERVICE_USERNAME` | ⚠️ | - | DPanel 账号（回环调用登录用；env 或管理面 API 录入，二选一） |
+| `DP_MCP_SERVICE_PASSWORD` | ⚠️ | - | DPanel 密码（同上；不配置则 MCP 工具调用全部失败） |
+
+> **service 凭据两种配置方式**（v1.11.4-mcp 起）：
+> 1. 环境变量（compose 部署，如上表）
+> 2. 管理面 API：首登设 founder 账密后，调 `POST /dpanel/api/common/mcp/update`
+>    （带面板 JWT）传 `serviceUsername`/`servicePassword`，存 settings 表
+>
+> 环境变量优先于 settings 表；改配置后需重启容器生效。
 
 ### MCP 权限分级
 
@@ -214,6 +221,18 @@ make build-full  # 构建 full 版本（含前端）
 ---
 
 ## 📈 更新日志
+
+### v1.11.4-mcp (2026-10-13)
+
+**新功能**：
+- ✅ MCP service 凭据可经管理面 API 录入：`/common/mcp/update` 新增可选参数
+  `serviceUsername`/`servicePassword`，存 settings 表（mcp/service）。
+  部署可不设 `DP_MCP_SERVICE_*` 环境变量，首登设 founder 后经 API 录入即可
+  （环境变量仍优先于持久化值）
+
+**修复**：
+- ✅ `serverInfo.version` 硬编码 `1.11.2` 未随版本更新——改为与发布版本对齐
+- ✅ README 配置表：service 凭据由「推荐设置」更正为「必填（env 或 API 二选一）」
 
 ### v1.11.3-mcp (2026-10-13)
 

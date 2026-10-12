@@ -141,6 +141,21 @@ func SaveConfig(enable bool, token, profile string) error {
 	return store.SaveMcpConfig(enable, token, profile)
 }
 
+// SaveServiceCredential 保存回环 service 凭据（供管理面 controller 写入）。
+// 环境变量 DP_MCP_SERVICE_USERNAME/PASSWORD 仍优先于此持久化值。
+func SaveServiceCredential(username, password string) error {
+	if store == nil {
+		return nil
+	}
+	return store.SaveServiceCredential(username, password)
+}
+
+// CurrentServiceCredential 当前回环 service 凭据（供管理面展示是否已配置）。
+func CurrentServiceCredential() (username, password string) {
+	provider := Provider{}
+	return provider.loadService()
+}
+
 // Tools 工具注册表（供管理面展示工具数）。
 func Tools() []string {
 	names := make([]string, 0, len(tools.Registry))

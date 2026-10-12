@@ -31,12 +31,16 @@ func (self Mcp) GetStatus(http *gin.Context) {
 }
 
 type mcpUpdateParams struct {
-	Enable  *bool   `json:"enable" binding:"required"`
-	Token   *string `json:"token"`
-	Profile *string `json:"profile" binding:"omitempty,oneof=read-only read-write admin"`
+	Enable          *bool   `json:"enable" binding:"required"`
+	Token           *string `json:"token"`
+	Profile         *string `json:"profile" binding:"omitempty,oneof=read-only read-write admin"`
+	ServiceUsername *string `json:"serviceUsername" binding:"omitempty"`
+	ServicePassword *string `json:"servicePassword" binding:"omitempty"`
 }
 
-// Update 启用/禁用/改配置。启用时若无 token 自动生成；service 凭据由启用流程写入。
+// Update 启用/禁用/改配置。启用时若无 token 自动生成；
+// serviceUsername/servicePassword 可选：录入 founder 凭据存 settings 表
+// （mcp/service），回环调用用它登录；环境变量 DP_MCP_SERVICE_* 仍优先。
 func (self Mcp) Update(http *gin.Context) {
 	params := mcpUpdateParams{}
 	if !self.Validate(http, &params) {
@@ -59,6 +63,12 @@ func (self Mcp) Update(http *gin.Context) {
 	if err := mcp.SaveConfig(*params.Enable, token, profile); err != nil {
 		self.JsonResponseWithError(http, err, 500)
 		return
+	}
+	if params.ServiceUsername != nil && params.ServicePassword != nil {
+		if err := mcp.SaveServiceCredential(*params.ServiceUsername, *params.ServicePassword); err != nil {
+			self.JsonResponseWithError(http, err, 500)
+			return
+		}
 	}
 	self.JsonSuccessResponse(http)
 }
