@@ -116,27 +116,36 @@ docker run -d \
 
 ---
 
-## 🔌 接入 Hermes Agent
+## 🔌 接入 MCP 客户端
 
-编辑 `~/.hermes/config.yaml`：
+### Hermes Agent
+
+编辑 `~/.hermes/config.yaml`（顶层 `mcp_servers`，`url` 直指 MCP 端点）：
 
 ```yaml
-mcp:
-  servers:
-    dpanel:
-      transport: http
-      url: http://localhost:8807/dpanel/mcp
-      headers:
-        Authorization: "Bearer YOUR_TOKEN_HERE"
+mcp_servers:
+  dpanel:
+    url: http://localhost:8807/dpanel/mcp
+    headers:
+      Authorization: "Bearer YOUR_TOKEN_HERE"
 ```
 
 测试连接：
 
 ```bash
-hermes restart
-hermes mcp list dpanel
-hermes mcp call dpanel dpanel_container_list
+hermes mcp test dpanel        # 连通性与工具发现
+hermes mcp list               # 查看已配置的 server
 ```
+
+也可用命令行添加（自动写入配置）：
+
+```bash
+hermes mcp add dpanel --url http://localhost:8807/dpanel/mcp --auth header
+```
+
+### 其他 MCP 客户端（通用）
+
+任何支持 Streamable HTTP 的客户端均可接入，端点 `http://<dpanel-host>:8807/dpanel/mcp`，请求头带 `Authorization: Bearer <token>`。
 
 ---
 
