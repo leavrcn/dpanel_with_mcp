@@ -96,10 +96,41 @@ docker run -d \
 
 > **service 凭据两种配置方式**（v1.11.4-mcp 起）：
 > 1. 环境变量（compose 部署，如上表）
-> 2. 管理面 API：首登设 founder 账密后，调 `POST /dpanel/api/common/mcp/update`
->    （带面板 JWT）传 `serviceUsername`/`servicePassword`，存 settings 表
+> 2. 管理面 API（见下）
 >
 > 环境变量优先于 settings 表；改配置后需重启容器生效。
+
+### 管理面 API 配置（免环境变量路径）
+
+面板 Web UI 暂无 MCP 设置页；token / 凭据 / profile 可经管理面 API 配置
+（走面板 JWT，与浏览器登录同一身份）。适合不想在 compose/.env 里放凭据的部署：
+
+```bash
+# 1. 登录拿 JWT（首次使用先在浏览器完成 founder 注册）
+JWT=$(curl -s -X POST http://localhost:8807/dpanel/api/common/user/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"你的账号","password":"你的密码"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["accessToken"])')
+
+# 2. 启用 MCP 并录入 service 凭据（token 留空则自动生成 32 字节随机值）
+curl -s -X POST http://localhost:8807/dpanel/api/common/mcp/update \
+  -H "Authorization: Bearer $JWT" -H 'Content-Type: application/json' \
+  -d '{"enable":true,"profile":"read-write","serviceUsername":"你的账号","servicePassword":"你的密码"}'
+
+# 3.（可选）重新生成 token——明文只在这次响应里返回一次
+curl -s -X POST http://localhost:8807/dpanel/api/common/mcp/regenerate-token \
+  -H "Authorization: Bearer $JWT" -H 'Content-Type: application/json' -d '{}'
+
+# 4. 查看状态（token 只显示掩码）
+curl -s -X POST http://localhost:8807/dpanel/api/common/mcp/get-status \
+  -H "Authorization: Bearer $JWT" -H 'Content-Type: application/json' -d '{}'
+
+# 5. 重启容器生效
+docker restart dpanel
+```
+
+> 走此路径时，compose 里的 `DP_MCP_SERVICE_USERNAME/PASSWORD` 两行应删除
+> （环境变量优先于 API 写入的值，留着会一直覆盖）。
 
 ### MCP 权限分级
 
