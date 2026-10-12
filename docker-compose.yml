@@ -15,7 +15,7 @@
 services:
   dpanel:
     # GHCR 镜像（tag 对应 Release）；跟踪最新可用 latest
-    image: ghcr.io/leavrcn/dpanel:1.11.2-mcp
+    image: ghcr.io/leavrcn/dpanel:1.11.3-mcp
     # 修改容器名称后，请同步修改下方 APP_NAME 环境变量
     container_name: dpanel
     restart: always

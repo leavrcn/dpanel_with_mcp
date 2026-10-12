@@ -4,7 +4,7 @@
 
 基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块，照 `app/agent` 先例）。
 
-**版本**: v1.11.2-mcp  
+**版本**: v1.11.3-mcp  
 **状态**: ✅ 生产就绪（含关键安全修复）  
 **评分**: 8.5/10 ★ 生产就绪度 95%
 
@@ -41,7 +41,7 @@ curl -H "Authorization: Bearer $DP_MCP_TOKEN" http://localhost:8807/dpanel/mcp
     },
     "serverInfo": {
       "name": "dpanel-mcp",
-      "version": "1.11.2-mcp"
+      "version": "1.11.3-mcp"
     }
   }
 }
@@ -53,7 +53,7 @@ curl -H "Authorization: Bearer $DP_MCP_TOKEN" http://localhost:8807/dpanel/mcp
 # 构建镜像（CE lite）
 docker build --target lite \
   -t dpanel-with-mcp:local \
-  --build-arg APP_VERSION=1.11.2-mcp \
+  --build-arg APP_VERSION=1.11.3-mcp \
   --build-arg APP_FAMILY=ce \
   -f docker/Dockerfile .
 
@@ -205,6 +205,18 @@ make build-full  # 构建 full 版本（含前端）
 ---
 
 ## 📈 更新日志
+
+### v1.11.3-mcp (2026-10-13)
+
+**上游同步**：
+- ✅ 合并 donknap/dpanel master（`ce4eb322` + `798db93d`，即上游 v1.11.1 最终态）
+- ✅ sock pipe 代理监听复用优化、scoop 安装支持、环境变量统一
+- ✅ 合并零冲突；MCP 模块（`app/mcp/`）与上游改动零重叠
+
+**验证**：
+- ✅ go vet 通过（MCP 子模块）
+- ✅ 单测 17/17 PASS
+- ✅ Docker 镜像构建通过（CE lite）
 
 ### v1.11.2-mcp (2026-10-12)
 
