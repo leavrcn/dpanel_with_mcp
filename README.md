@@ -4,7 +4,7 @@
 
 基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块）。
 
-**版本**: v1.11.4-mcp
+**版本**: v1.11.5-mcp
 
 ---
 
@@ -39,7 +39,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
     },
     "serverInfo": {
       "name": "dpanel-mcp",
-      "version": "1.11.4-mcp"
+      "version": "1.11.5-mcp"
     }
   }
 }
@@ -51,7 +51,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
 # 构建镜像（CE lite）
 docker build --target lite \
   -t dpanel-with-mcp:local \
-  --build-arg APP_VERSION=1.11.4-mcp \
+  --build-arg APP_VERSION=1.11.5-mcp \
   --build-arg APP_FAMILY=ce \
   -f docker/Dockerfile .
 
@@ -222,6 +222,18 @@ make build-full  # full 版（含前端）
 ---
 
 ## 📈 更新日志
+
+### v1.11.5-mcp (2026-10-13)
+
+- 修复 `dpanel_notice_unread`：面板 `/common/notice/unread` 的 binding 要求
+  `action` 必填（new|init|clear），工具此前未注册该参数导致恒 500。
+  现已注册并默认 `new`
+- 修复 MCP client 错误提取：非 200 响应此前直接返回状态码文本
+  （"Internal Server Error"），不解析错误体。现解析面板错误体的
+  message/error 字段，agent 能看到真实错误（如 `.commonDataNotFoundOrDeleted`）
+- explorer 工具描述与 mountPoint 校验错误信息补充前提：`docker:<环境名>`
+  挂载点仅限开启 SSH 的远程环境，本地 sock 环境用 `volume:`/`container:`
+- 新增 `TestNoticeUnreadActionParam` 契约测试防回归
 
 ### v1.11.4-mcp (2026-10-13)
 

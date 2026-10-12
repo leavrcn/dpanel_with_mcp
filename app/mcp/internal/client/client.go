@@ -190,7 +190,22 @@ func (c *Client) postOnce(ctx context.Context, path string, payload any, token s
 		return nil, &ApiError{Message: "响应读取失败: " + err.Error()}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &ApiError{StatusCode: resp.StatusCode, Message: http.StatusText(resp.StatusCode), Body: string(raw)}
+		// 非 200 也尝试解析错误体（面板 500 走 error 字段，内嵌 JSON 含 title），
+		// 解析不出再退回状态码文本——避免把可诊断的业务错误泛化成 "Internal Server Error"。
+		msg := http.StatusText(resp.StatusCode)
+		var errEnvelope struct {
+			Code int    `json:"code"`
+			Msg  string `json:"message"`
+			Err  string `json:"error"`
+		}
+		if json.Unmarshal(raw, &errEnvelope) == nil {
+			if errEnvelope.Msg != "" {
+				msg = errEnvelope.Msg
+			} else if errEnvelope.Err != "" {
+				msg = errEnvelope.Err
+			}
+		}
+		return nil, &ApiError{StatusCode: resp.StatusCode, Message: msg, Body: string(raw)}
 	}
 	// SPA 兜底：未知路由返回 200 + HTML，必须显式诊断而不是把整页 HTML 交给 agent
 	ct := resp.Header.Get("Content-Type")
@@ -202,13 +217,19 @@ func (c *Client) postOnce(ctx context.Context, path string, payload any, token s
 	var envelope struct {
 		Code int    `json:"code"`
 		Msg  string `json:"message"`
+		Err  string `json:"error"`
 		Data any    `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return nil, &ApiError{Message: "响应解析失败: " + err.Error(), Body: string(raw)}
 	}
 	if envelope.Code != 0 && envelope.Code != http.StatusOK {
+		// 面板错误体两种形态：业务错误走 message；rangine 包装的 500 走 error
+		// （内嵌 JSON 字符串，含 title 如 .commonDataNotFoundOrDeleted）。
 		msg := envelope.Msg
+		if msg == "" {
+			msg = envelope.Err
+		}
 		if msg == "" {
 			msg = fmt.Sprintf("code=%d", envelope.Code)
 		}

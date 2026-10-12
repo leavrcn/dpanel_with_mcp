@@ -24,7 +24,7 @@ import (
 )
 
 // Version 与 DPanel 对齐的版本号。
-const Version = "1.11.4-mcp"
+const Version = "1.11.5-mcp"
 
 // ToolDef 工具注册表表项。
 type ToolDef struct {
@@ -269,7 +269,7 @@ func validateMountPoint(s string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf(
-		"必须为 'volume:<name>'、'container:<md5>' 或 'docker:<env>'（如 'volume:dpanel-data', 'container:abc123', 'docker:local'）")
+		"必须为 'volume:<name>'、'container:<md5>' 或 'docker:<env>'（如 'volume:dpanel-data', 'container:abc123'；docker: 仅限开启 SSH 的远程环境）")
 }
 
 func asInt(v any) (int, error) {

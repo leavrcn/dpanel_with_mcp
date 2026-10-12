@@ -5,7 +5,7 @@ func init() {
 	registerSlice([]ToolDef{
 		{
 			Name:        "dpanel_explorer_list",
-			Description: "文件列表。mount_point ∈ volume:<卷名> | container:<容器ID> | docker:<环境名>",
+			Description: "文件列表。mount_point ∈ volume:<卷名> | container:<容器ID> | docker:<环境名>（docker: 仅限开启 SSH 的远程环境；本地 sock 环境用 volume:/container:）",
 			Route:       "/common/explorer/get-path-list",
 			Params: []ParamDef{
 			{Name: "mount_point", Type: "string", Description: "", Required: true, PayloadKey: "mountPoint", ValidateMountPoint: true},

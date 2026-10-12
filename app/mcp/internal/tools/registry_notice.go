@@ -16,8 +16,11 @@ func init() {
 		},
 		{
 			Name:        "dpanel_notice_unread",
-			Description: "未读通知（action=new）",
+			Description: "未读通知。action=new 查询未读；init 取最近 5 条；clear 清空全部已读状态",
 			Route:       "/common/notice/unread",
+			Params: []ParamDef{
+				{Name: "action", Type: "string", Description: "new | init | clear", Required: false, Default: "new"},
+			},
 			Minimum:     "read-only",
 			Destructive: false,
 		},

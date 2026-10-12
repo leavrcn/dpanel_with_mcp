@@ -314,3 +314,39 @@ func splitKey(key string) (string, string) {
 	}
 	return key, ""
 }
+
+
+// TestNoticeUnreadActionParam notice_unread 必须带 action 参数（面板 binding 要求
+// action ∈ new|clear|init，缺参数会被 500 拒绝——v1.11.5 修复的回归保护）。
+func TestNoticeUnreadActionParam(t *testing.T) {
+	var def *ToolDef
+	for i := range Registry {
+		if Registry[i].Name == "dpanel_notice_unread" {
+			def = &Registry[i]
+			break
+		}
+	}
+	if def == nil {
+		t.Fatalf("dpanel_notice_unread 不在注册表")
+	}
+	found := false
+	for _, p := range def.Params {
+		if p.Name == "action" {
+			found = true
+			if p.Default != "new" {
+				t.Errorf("action 默认值应为 new，实际 %v", p.Default)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("dpanel_notice_unread 应有 action 参数（面板 /common/notice/unread 的 binding 要求 action 必填）")
+	}
+	// 空参数调用应能组装出 action=new 的 payload（不再触发面板 500）
+	payload, err := buildPayload(*def, map[string]any{})
+	if err != nil {
+		t.Fatalf("空参数应走默认值: %v", err)
+	}
+	if payload["action"] != "new" {
+		t.Errorf("payload.action 应为 new，实际 %v", payload["action"])
+	}
+}
