@@ -4,7 +4,7 @@
 
 基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块）。
 
-**版本**: v1.11.6-mcp
+**版本**: v1.11.1-mcp6（基线 DPanel v1.11.1，MCP 第 6 版）
 
 ---
 
@@ -39,7 +39,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
     },
     "serverInfo": {
       "name": "dpanel-mcp",
-      "version": "1.11.6-mcp"
+      "version": "1.11.1-mcp6"
     }
   }
 }
@@ -51,7 +51,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
 # 构建镜像（CE lite）
 docker build --target lite \
   -t dpanel-with-mcp:local \
-  --build-arg APP_VERSION=1.11.6-mcp \
+  --build-arg APP_VERSION=1.11.1-mcp6 \
   --build-arg APP_FAMILY=ce \
   -f docker/Dockerfile .
 
@@ -223,7 +223,11 @@ make build-full  # full 版（含前端）
 
 ## 📈 更新日志
 
-### v1.11.6-mcp (2026-10-14)
+> **版本方案**：`<上游基线>-mcp<N>`，如 `1.11.1-mcp6` = 基于 DPanel v1.11.1 的第 6 个 MCP 版本。
+> 上游发新版后计数器重置（如 DPanel 1.11.2 → `v1.11.2-mcp1`）。历史版本曾用
+> `1.11.2~1.11.6-mcp` 递增命名，自本版起废弃（那些版本号在上游并不存在，易误导）。
+
+### v1.11.1-mcp6 (2026-10-14)
 
 - 修复 `dpanel_explorer_export` / `dpanel_compose_log`（download=true）：
   上游导出/下载类接口返回 attachment 文件流（非 JSON），MCP 层按 JSON
