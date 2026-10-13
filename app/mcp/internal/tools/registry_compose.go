@@ -1,5 +1,9 @@
 package tools
 
+import (
+	"fmt"
+)
+
 // compose 模块工具（对齐 DPanel v1.11.1）。
 func init() {
 	registerSlice([]ToolDef{
@@ -22,17 +26,26 @@ func init() {
 		},
 		{
 			Name:        "dpanel_compose_log",
-			Description: "Compose 项目日志（全量文本）。line_total ∈ 50|100|200|500|1000|5000|-1。默认 download=true 返回 text/plain 全量日志；download=false 走面板 WebSocket 推送（MCP 场景不可用）",
+			Description: "Compose 项目日志（全量文本，超过 8MiB 截断）。line_total ∈ 50|100|200|500|1000|5000|-1。默认 download=true 返回 text/plain 全量日志；download=false 走面板 WebSocket 推送（MCP 无 ws 连接，会被本地拒绝）",
 			Route:       "/app/compose/container-log",
 			Params: []ParamDef{
 				{Name: "id", Type: "string", Description: "", Required: true},
 				{Name: "line_total", Type: "number", Description: "", Required: false, PayloadKey: "lineTotal", Normalize: "int", Default: 50},
 				// 上游 download=false 走 ws 管道（无 WebSocket 连接时 500 "fd not found"），
-				// download=true 直接返回 text/plain 全量日志 —— MCP 默认走后者。
-				{Name: "download", Type: "boolean", Description: "默认 true：返回全量文本", Required: false, Default: true},
+				// download=true 直接返回 text/plain 全量日志 —— MCP 默认走后者，
+				// 显式传 false 时本地 fail-fast（PreCheck）而不是撞上游 500。
+				{Name: "download", Type: "boolean", Description: "默认 true：返回全量文本；传 false 会被拒绝（MCP 无 WebSocket 通道）", Required: false, Default: true},
 			},
 			Minimum:     "read-only",
 			Destructive: false,
+			PreCheck: func(args map[string]any) error {
+				if v, exists := args["download"]; exists {
+					if b, ok := v.(bool); ok && !b {
+						return fmt.Errorf("download=false 走面板 WebSocket 推送，MCP 无 ws 连接不可用；请保持默认 download=true（text/plain 全量文本）")
+					}
+				}
+				return nil
+			},
 		},
 		{
 			Name:        "dpanel_compose_get_from_uri",

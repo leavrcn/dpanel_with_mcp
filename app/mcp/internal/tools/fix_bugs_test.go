@@ -10,11 +10,31 @@ import (
 // TestTextPayloadContract B（explorer_export / compose_log download）：
 // 上游对导出/下载类请求返回 attachment 文件流（Content-Type 非 JSON），
 // client 必须以 TextPayload 透传而不是报「响应解析失败」，dispatcher 直接返回文本。
+// text/* 内容过 redact.Text() 脱敏（日志里的 KEY=VALUE/JWT 被 mask）；
+// 二进制（zip/octet-stream）原样透传。
 func TestTextPayloadContract(t *testing.T) {
 	tp := client.TextPayload{Content: "services:\n  a: 1\n", ContentType: "text/plain"}
 	out := renderPayload(tp)
 	if !strings.Contains(out, "services") {
 		t.Errorf("TextPayload 应透传文本内容，实际 %q", out)
+	}
+	// text/* 脱敏：日志中的敏感 KEY=VALUE 与 JWT 被 mask
+	sensitive := client.TextPayload{
+		Content:     "DB_PASSWORD=supersecret123\nJWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0SEs\n",
+		ContentType: "text/plain; charset=utf-8",
+	}
+	out = renderPayload(sensitive)
+	if strings.Contains(out, "supersecret123") {
+		t.Errorf("text/* 内容应脱敏 KEY=VALUE，实际 %q", out)
+	}
+	if strings.Contains(out, "eyJhbGciOi") {
+		t.Errorf("text/* 内容应脱敏 JWT，实际 %q", out)
+	}
+	// 二进制原样透传（不脱敏——正则对二进制无意义）
+	bin := client.TextPayload{Content: "\x50\x4b\x03\x04\xff", ContentType: "application/zip"}
+	out = renderPayload(bin)
+	if out != "\x50\x4b\x03\x04\xff" {
+		t.Errorf("二进制应原样透传，实际 %q", out)
 	}
 	// JSON 数据仍走脱敏 + marshal 路径
 	out2 := renderPayload(map[string]any{"token": "secret"})
@@ -44,13 +64,15 @@ func TestContainerStatRouteFix(t *testing.T) {
 	if def.PostProcess == nil {
 		t.Error("container_stat 应有 PostProcess（按容器 id 过滤）")
 	}
-	// 过滤逻辑：完整 ID / 前缀 / 容器名匹配（每次用全新数据，filter 会原地改写 docker 数组）
+	// 过滤逻辑：完整 ID / 前缀 / 容器名匹配（每次用全新数据，filter 会原地改写 docker 数组）。
+	// 上游 stats 的 name 带 "/" 前缀（daemon reserveName 存储 "/"+name，stat.go 直接透传 v.Name），
+	// 过滤必须双侧裁剪前缀，否则按容器名查询静默返回空。
 	newData := func() map[string]any {
 		return map[string]any{
 			"dockerEnvName": "local",
 			"docker": []any{
-				map[string]any{"container": "eb7e722760b7e89ccc0658d48201a638", "name": "dpanel", "cpu": 1.2},
-				map[string]any{"container": "bde20717e3bc1705", "name": "sillytavern", "cpu": 0.1},
+				map[string]any{"container": "eb7e722760b7e89ccc0658d48201a638", "name": "/dpanel", "cpu": 1.2},
+				map[string]any{"container": "bde20717e3bc1705", "name": "/sillytavern", "cpu": 0.1},
 			},
 		}
 	}
@@ -64,13 +86,44 @@ func TestContainerStatRouteFix(t *testing.T) {
 			t.Errorf("%s: 应命中 %d 个，实际 %v", label, want, obj["docker"])
 		}
 	}
-	assertDocker(filterContainerStat(newData(), map[string]any{"id": "eb7e"}), 1, "前缀过滤")
-	assertDocker(filterContainerStat(newData(), map[string]any{"id": "sillytavern"}), 1, "容器名过滤")
+	assertDocker(filterContainerStat(newData(), map[string]any{"id": "eb7e"}), 1, "ID 前缀过滤")
+	assertDocker(filterContainerStat(newData(), map[string]any{"id": "sillytavern"}), 1, "容器名过滤（无斜杠）")
+	assertDocker(filterContainerStat(newData(), map[string]any{"id": "/sillytavern"}), 1, "容器名过滤（带斜杠）")
 	assertDocker(filterContainerStat(newData(), map[string]any{"id": "nonexist"}), 0, "无匹配")
+	// 边界：id 缺失 / data 非 map / docker 缺失时原样返回不 panic
+	if got := filterContainerStat(newData(), map[string]any{}); got == nil {
+		t.Error("id 缺失应原样返回")
+	}
+	if got := filterContainerStat("not-a-map", map[string]any{"id": "x"}); got != "not-a-map" {
+		t.Error("data 非 map 应原样返回")
+	}
+	noDocker := map[string]any{"dockerEnvName": "local"}
+	if got := filterContainerStat(noDocker, map[string]any{"id": "x"}); !sameMap(got, noDocker) {
+		t.Error("docker 字段缺失应原样返回")
+	}
+}
+
+// sameMap 比较两个 map（any 包装后无法直接 ==）。
+func sameMap(a, b any) bool {
+	ma, ok1 := a.(map[string]any)
+	mb, ok2 := b.(map[string]any)
+	if !ok1 || !ok2 {
+		return false
+	}
+	if len(ma) != len(mb) {
+		return false
+	}
+	for k, v := range ma {
+		if mb[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // TestComposeLogDownloadDefault compose_log 默认 download=true：
 // 上游 download=false 走 ws 管道（fd not found）；download=true 返回 text/plain 全量日志。
+// 显式传 false 会被 PreCheck 本地拒绝（fail-fast 而非撞上游 500）。
 func TestComposeLogDownloadDefault(t *testing.T) {
 	var def *ToolDef
 	for i := range Registry {
@@ -82,11 +135,29 @@ func TestComposeLogDownloadDefault(t *testing.T) {
 	if def == nil {
 		t.Fatal("dpanel_compose_log 不在注册表")
 	}
+	found := false
 	for _, p := range def.Params {
 		if p.Name == "download" {
+			found = true
 			if p.Default != true {
 				t.Errorf("compose_log.download 默认应为 true（走 text/plain 全量返回），实际 %v", p.Default)
 			}
+		}
+	}
+	if !found {
+		t.Error("compose_log 缺少 download 参数")
+	}
+	if def.PreCheck == nil {
+		t.Error("compose_log 应有 PreCheck（download=false 本地拒绝）")
+	} else {
+		if err := def.PreCheck(map[string]any{"download": false}); err == nil {
+			t.Error("PreCheck 应拒绝 download=false")
+		}
+		if err := def.PreCheck(map[string]any{"download": true}); err != nil {
+			t.Errorf("PreCheck 不应拒绝 download=true: %v", err)
+		}
+		if err := def.PreCheck(map[string]any{}); err != nil {
+			t.Errorf("PreCheck 不应拒绝缺省（默认 true）: %v", err)
 		}
 	}
 }

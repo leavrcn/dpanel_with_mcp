@@ -49,7 +49,7 @@ func init() {
 		},
 		{
 			Name:        "dpanel_explorer_export",
-			Description: "导出文件（打包为 tar 流，以文本透传返回）",
+			Description: "导出文件：单文件返回原始字节流，多文件打包为 zip，均以文本透传（二进制内容经 UTF-8 文本化，无法还原为文件；超过 8MiB 截断）。适合查看文本类文件内容",
 			Route:       "/common/explorer/export",
 			Params: []ParamDef{
 				{Name: "mount_point", Type: "string", Description: "", Required: true, PayloadKey: "mountPoint", ValidateMountPoint: true},

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -148,7 +149,7 @@ func TestJSONTypeParams(t *testing.T) {
 func TestDefaults(t *testing.T) {
 	expect := map[string]string{ // "tool.param" -> 默认值字符串
 		"dpanel_compose_log.line_total":       "50",
-		"dpanel_compose_log.download":         "false",
+		"dpanel_compose_log.download":         "true",
 		"dpanel_explorer_list.path":           "/",
 		"dpanel_log_list.page":                "1",
 		"dpanel_log_list.page_size":           "50",
@@ -177,6 +178,8 @@ func TestDefaults(t *testing.T) {
 				found = true
 				if p.Default == nil {
 					t.Errorf("%s: 缺少默认值（期望 %s）", key, want)
+				} else if fmt.Sprintf("%v", p.Default) != want {
+					t.Errorf("%s: 默认值 %v，期望 %s", key, p.Default, want)
 				}
 			}
 		}

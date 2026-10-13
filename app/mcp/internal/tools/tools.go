@@ -37,6 +37,9 @@ type ToolDef struct {
 	// PostProcess 响应后处理：上游路由无法直接给出期望形态时（如 ws 管道路由
 	// 换成一次性快照路由后按容器过滤），在 MCP 层加工响应数据。
 	PostProcess func(data any, args map[string]any) any
+	// PreCheck 本地前置校验：参数组合在上游必然失败（如走 WebSocket 管道的
+	// 路由）时，在转发前报清晰错误，避免 agent 撞上游 500。
+	PreCheck func(args map[string]any) error
 }
 
 // ParamDef 工具参数定义。
@@ -139,30 +142,41 @@ func (d *Dispatcher) handler(def ToolDef) server.ToolHandlerFunc {
 				return mcp.NewToolResultError(profile.ConfirmRequired(def.Name).Error()), nil
 			}
 		}
-		// 3. 组装 payload（参数归一化对齐 DPanel Go 类型）
+		// 3. 本地前置校验（参数组合在上游必然失败时提前报清晰错误）
+		if def.PreCheck != nil {
+			if err := def.PreCheck(request.GetArguments()); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+		}
+		// 4. 组装 payload（参数归一化对齐 DPanel Go 类型）
 		payload, err := buildPayload(def, request.GetArguments())
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		// 4. 转发 DPanel API
+		// 5. 转发 DPanel API
 		data, err := d.api.Post(ctx, def.Route, payload)
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("DPanel API 调用失败", err), nil
 		}
-		// 5. 响应后处理（如 container_stat 按容器 id 过滤）
+		// 6. 响应后处理（如 container_stat 按容器 id 过滤）
 		if def.PostProcess != nil {
 			data = def.PostProcess(data, request.GetArguments())
 		}
-		// 6. 响应脱敏 + 渲染
+		// 7. 响应脱敏 + 渲染
 		return mcp.NewToolResultText(renderPayload(data)), nil
 	}
 }
 
 // renderPayload 渲染响应数据：
-//   - client.TextPayload（导出/下载类接口的文件流）直接透传文本；
-//   - 其余走脱敏 + JSON 序列化。
+//   - client.TextPayload（导出/下载类接口的文件流）按内容类型分流：
+//     text/* 过 redact.Text() 脱敏后透传（日志里的 KEY=VALUE/JWT 会被 mask）；
+//     二进制（zip/octet-stream）原样透传——正则脱敏对二进制无意义且可能破坏内容。
+//   - 其余走 redact.Value + JSON 序列化。
 func renderPayload(data any) string {
 	if tp, ok := data.(client.TextPayload); ok {
+		if strings.HasPrefix(tp.ContentType, "text/") {
+			return redact.Text(tp.Content)
+		}
 		return tp.Content
 	}
 	data = redact.Value(data)
@@ -293,11 +307,14 @@ func validateMountPoint(s string) (string, error) {
 // 上游 /app/container/get-stat-info 是 ws 管道路由（数据只走 WebSocket 广播，
 // HTTP 响应不含统计），改用 /common/home/get-stat-list（follow=false）一次性
 // 拉全量后，按容器 id（完整 ID / 前缀）或容器名过滤出目标容器。
+// 注意：上游 stats 的 name 带 "/" 前缀（daemon reserveName 存储 "/"+name，
+// stat.go 直接透传 v.Name），比较前必须双侧裁剪，否则按容器名查询静默返回空。
 func filterContainerStat(data any, args map[string]any) any {
 	id, _ := args["id"].(string)
 	if id == "" {
 		return data
 	}
+	id = strings.TrimPrefix(id, "/")
 	obj, ok := data.(map[string]any)
 	if !ok {
 		return data
@@ -314,9 +331,17 @@ func filterContainerStat(data any, args map[string]any) any {
 		}
 		container, _ := m["container"].(string)
 		name, _ := m["name"].(string)
-		if container == id || strings.HasPrefix(container, id) || name == id {
+		name = strings.TrimPrefix(name, "/")
+		if strings.HasPrefix(container, id) || name == id {
 			out = append(out, m)
 		}
+	}
+	// 无匹配时给出可区分的提示（容器不存在 vs 无统计），避免静默空数组
+	if len(out) == 0 {
+		obj["docker"] = out
+		obj["matched"] = 0
+		obj["hint"] = "no container matched id " + id + "（可用 dpanel_container_list 查容器 ID/名称）"
+		return obj
 	}
 	obj["docker"] = out
 	return obj
