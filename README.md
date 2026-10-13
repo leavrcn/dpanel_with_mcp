@@ -4,7 +4,7 @@
 
 基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块）。
 
-**版本**: v1.11.5-mcp
+**版本**: v1.11.6-mcp
 
 ---
 
@@ -39,7 +39,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
     },
     "serverInfo": {
       "name": "dpanel-mcp",
-      "version": "1.11.5-mcp"
+      "version": "1.11.6-mcp"
     }
   }
 }
@@ -51,7 +51,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
 # 构建镜像（CE lite）
 docker build --target lite \
   -t dpanel-with-mcp:local \
-  --build-arg APP_VERSION=1.11.5-mcp \
+  --build-arg APP_VERSION=1.11.6-mcp \
   --build-arg APP_FAMILY=ce \
   -f docker/Dockerfile .
 
@@ -222,6 +222,20 @@ make build-full  # full 版（含前端）
 ---
 
 ## 📈 更新日志
+
+### v1.11.6-mcp (2026-10-14)
+
+- 修复 `dpanel_explorer_export` / `dpanel_compose_log`（download=true）：
+  上游导出/下载类接口返回 attachment 文件流（非 JSON），MCP 层按 JSON
+  解析报「响应解析失败」。现以文本透传，text/* 内容过脱敏（日志中的
+  KEY=VALUE/JWT 被 mask）
+- 修复 `dpanel_container_stat` 恒 500 "fd not found"：上游路由是
+  WebSocket 管道（HTTP 响应不含统计）。改用一次性快照路由 + 按容器
+  ID/前缀/名称过滤（名称匹配裁剪 `/` 前缀，无匹配时附提示）
+- 修复 `dpanel_compose_log` 默认走 WebSocket 管道：默认改为
+  download=true 返回全量文本；显式传 false 时本地拒绝并给出清晰错误
+- explorer_import/export 参数描述补齐实测行为（源路径固定在
+  /dpanel/storage/temp/；导出为 octet-stream/zip，8MiB 截断）
 
 ### v1.11.5-mcp (2026-10-13)
 

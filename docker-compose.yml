@@ -12,7 +12,7 @@
 
 services:
   dpanel:
-    image: ghcr.io/leavrcn/dpanel:1.11.5-mcp
+    image: ghcr.io/leavrcn/dpanel:1.11.6-mcp
     container_name: dpanel
     restart: always
     ports:
