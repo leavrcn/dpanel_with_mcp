@@ -34,6 +34,9 @@ type ToolDef struct {
 	Params      []ParamDef // 参数 schema（给 agent 的文档 + 取参）
 	Minimum     string     // 最低能力分级
 	Destructive bool       // 破坏性：必须 confirm=true
+	// PostProcess 响应后处理：上游路由无法直接给出期望形态时（如 ws 管道路由
+	// 换成一次性快照路由后按容器过滤），在 MCP 层加工响应数据。
+	PostProcess func(data any, args map[string]any) any
 }
 
 // ParamDef 工具参数定义。
@@ -146,14 +149,28 @@ func (d *Dispatcher) handler(def ToolDef) server.ToolHandlerFunc {
 		if err != nil {
 			return mcp.NewToolResultErrorFromErr("DPanel API 调用失败", err), nil
 		}
-		// 5. 响应脱敏
-		data = redact.Value(data)
-		out, err := json.Marshal(data)
-		if err != nil {
-			return mcp.NewToolResultErrorf("响应序列化失败: %v", err), nil
+		// 5. 响应后处理（如 container_stat 按容器 id 过滤）
+		if def.PostProcess != nil {
+			data = def.PostProcess(data, request.GetArguments())
 		}
-		return mcp.NewToolResultText(string(out)), nil
+		// 6. 响应脱敏 + 渲染
+		return mcp.NewToolResultText(renderPayload(data)), nil
 	}
+}
+
+// renderPayload 渲染响应数据：
+//   - client.TextPayload（导出/下载类接口的文件流）直接透传文本；
+//   - 其余走脱敏 + JSON 序列化。
+func renderPayload(data any) string {
+	if tp, ok := data.(client.TextPayload); ok {
+		return tp.Content
+	}
+	data = redact.Value(data)
+	out, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Sprintf(`{"error":"响应序列化失败: %v"}`, err)
+	}
+	return string(out)
 }
 
 // buildPayload 组装 DPanel API payload：默认值填充 → 必填校验 → mountPoint 校验 →
@@ -270,6 +287,39 @@ func validateMountPoint(s string) (string, error) {
 	}
 	return "", fmt.Errorf(
 		"必须为 'volume:<name>'、'container:<md5>' 或 'docker:<env>'（如 'volume:dpanel-data', 'container:abc123'；docker: 仅限开启 SSH 的远程环境）")
+}
+
+// filterContainerStat container_stat 的响应后处理：
+// 上游 /app/container/get-stat-info 是 ws 管道路由（数据只走 WebSocket 广播，
+// HTTP 响应不含统计），改用 /common/home/get-stat-list（follow=false）一次性
+// 拉全量后，按容器 id（完整 ID / 前缀）或容器名过滤出目标容器。
+func filterContainerStat(data any, args map[string]any) any {
+	id, _ := args["id"].(string)
+	if id == "" {
+		return data
+	}
+	obj, ok := data.(map[string]any)
+	if !ok {
+		return data
+	}
+	docker, ok := obj["docker"].([]any)
+	if !ok {
+		return data
+	}
+	out := make([]any, 0, len(docker))
+	for _, item := range docker {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		container, _ := m["container"].(string)
+		name, _ := m["name"].(string)
+		if container == id || strings.HasPrefix(container, id) || name == id {
+			out = append(out, m)
+		}
+	}
+	obj["docker"] = out
+	return obj
 }
 
 func asInt(v any) (int, error) {

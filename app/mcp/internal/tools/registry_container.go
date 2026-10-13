@@ -26,13 +26,16 @@ func init() {
 		},
 		{
 			Name:        "dpanel_container_stat",
-			Description: "容器资源统计（CPU/内存/网络 IO）。id 为容器 ID",
-			Route:       "/app/container/get-stat-info",
+			Description: "容器资源统计（CPU/内存/网络 IO）。id 为容器 ID（完整/前缀）或容器名",
+			// 上游 /app/container/get-stat-info 是 ws 管道路由（HTTP 响应不含统计），
+			// 改用 get-stat-list 一次性快照后按 id 过滤（见 filterContainerStat）。
+			Route: "/common/home/get-stat-list",
 			Params: []ParamDef{
-			{Name: "id", Type: "string", Description: "", Required: true},
-		},
+				{Name: "id", Type: "string", Description: "容器 ID（完整/前缀）或容器名", Required: true},
+			},
 			Minimum:     "read-only",
 			Destructive: false,
+			PostProcess: filterContainerStat,
 		},
 		{
 			Name:        "dpanel_container_process",

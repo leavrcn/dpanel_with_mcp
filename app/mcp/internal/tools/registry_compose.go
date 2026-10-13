@@ -22,13 +22,15 @@ func init() {
 		},
 		{
 			Name:        "dpanel_compose_log",
-			Description: "Compose 项目日志。line_total ∈ 50|100|200|500|1000|5000|-1。download=true 返回全量文本",
+			Description: "Compose 项目日志（全量文本）。line_total ∈ 50|100|200|500|1000|5000|-1。默认 download=true 返回 text/plain 全量日志；download=false 走面板 WebSocket 推送（MCP 场景不可用）",
 			Route:       "/app/compose/container-log",
 			Params: []ParamDef{
-			{Name: "id", Type: "string", Description: "", Required: true},
-			{Name: "line_total", Type: "number", Description: "", Required: false, PayloadKey: "lineTotal", Normalize: "int", Default: 50},
-			{Name: "download", Type: "boolean", Description: "", Required: false, Default: false},
-		},
+				{Name: "id", Type: "string", Description: "", Required: true},
+				{Name: "line_total", Type: "number", Description: "", Required: false, PayloadKey: "lineTotal", Normalize: "int", Default: 50},
+				// 上游 download=false 走 ws 管道（无 WebSocket 连接时 500 "fd not found"），
+				// download=true 直接返回 text/plain 全量日志 —— MCP 默认走后者。
+				{Name: "download", Type: "boolean", Description: "默认 true：返回全量文本", Required: false, Default: true},
+			},
 			Minimum:     "read-only",
 			Destructive: false,
 		},

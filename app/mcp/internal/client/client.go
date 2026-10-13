@@ -21,6 +21,14 @@ import (
 	"time"
 )
 
+// TextPayload 上游返回非 JSON 200 响应（导出/下载类接口返回 attachment 文件流，
+// 如 explorer/export、compose container-log download=true）时的透传载体。
+// dispatcher 识别后直接把 Content 作为工具结果文本返回，不做 JSON 解析。
+type TextPayload struct {
+	Content     string
+	ContentType string
+}
+
 type ApiError struct {
 	Message    string
 	StatusCode int
@@ -213,6 +221,11 @@ func (c *Client) postOnce(ctx context.Context, path string, payload any, token s
 		return nil, &ApiError{
 			Message: fmt.Sprintf("endpoint not found on DPanel: %s（返回了 HTML 页面，通常是路由不存在或 DPanel 版本不匹配）", path),
 		}
+	}
+	// 导出/下载类接口返回 attachment 文件流（text/plain、application/octet-stream、application/x-tar 等），
+	// 不是 JSON 信封。按文本透传给 dispatcher，而不是报「响应解析失败」。
+	if !strings.Contains(ct, "json") {
+		return TextPayload{Content: string(raw), ContentType: ct}, nil
 	}
 	var envelope struct {
 		Code int    `json:"code"`
