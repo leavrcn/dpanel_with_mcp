@@ -1,6 +1,10 @@
 package tools
 
 // image 模块工具（对齐 DPanel v1.11.1）。
+import (
+	"errors"
+)
+
 func init() {
 	registerSlice([]ToolDef{
 		{
@@ -43,12 +47,23 @@ func init() {
 		},
 		{
 			Name:        "dpanel_image_tag_sync",
-			Description: "同步镜像 tag。sync_type ∈ pull|push。tag 形如 repo:tag",
+			Description: "推送镜像 tag 到远程仓库（push）。注意：pull 已不可用（面板 pull 依赖 WebSocket 会话，MCP 调用必报 fd not found）——拉取镜像请用 dpanel_image_pull",
 			Route:       "/app/image/tag-sync",
 			Params: []ParamDef{
-			{Name: "tag", Type: "string", Description: "", Required: true},
-			{Name: "sync_type", Type: "string", Description: "", Required: false, PayloadKey: "type", Enum: []string{"pull", "push"}, Default: "pull"},
-		},
+				{Name: "tag", Type: "string", Description: "", Required: true},
+				{Name: "sync_type", Type: "string", Description: "", Required: false, PayloadKey: "type", Enum: []string{"pull", "push"}, Default: "pull"},
+			},
+			PreCheck: func(args map[string]any) error {
+				// pull 分支走 ws progress fd（MCP 无 ws 会话必 500），本地拒绝并指向替代工具
+				t, _ := args["sync_type"].(string)
+				if t == "" {
+					t = "pull" // Default 为 pull
+				}
+				if t == "pull" {
+					return errors.New("pull 已不可用：面板 pull 依赖 WebSocket 会话，MCP 调用必报 fd not found。请改用 dpanel_image_pull")
+				}
+				return nil
+			},
 			Minimum:     "read-write",
 			Destructive: false,
 		},

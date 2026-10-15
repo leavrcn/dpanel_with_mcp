@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// TestRegistryCompleteness 注册表完整性：99 个工具、无重名、路由非空、分级合法。
+// TestRegistryCompleteness 注册表完整性：100 个工具、无重名、路由非空（本地执行工具除外）、分级合法。
 func TestRegistryCompleteness(t *testing.T) {
-	if len(Registry) != 99 {
-		t.Fatalf("注册表应有 99 个工具，实际 %d", len(Registry))
+	if len(Registry) != 100 {
+		t.Fatalf("注册表应有 100 个工具，实际 %d", len(Registry))
 	}
 	seen := map[string]bool{}
 	for _, def := range Registry {
@@ -16,13 +16,21 @@ func TestRegistryCompleteness(t *testing.T) {
 			t.Errorf("工具重名: %s", def.Name)
 		}
 		seen[def.Name] = true
-		if def.Route == "" || !strings.HasPrefix(def.Route, "/") {
-			t.Errorf("%s: 路由无效 %q", def.Name, def.Route)
-		}
+		// 分级校验对所有工具生效（含本地执行工具）
 		switch def.Minimum {
 		case "read-only", "read-write", "admin":
 		default:
 			t.Errorf("%s: 分级无效 %q", def.Name, def.Minimum)
+		}
+		// 本地执行工具（Execute != nil）无面板路由，Route 必须为空
+		if def.Execute != nil {
+			if def.Route != "" {
+				t.Errorf("%s: 本地执行工具不应有路由 %q", def.Name, def.Route)
+			}
+			continue
+		}
+		if def.Route == "" || !strings.HasPrefix(def.Route, "/") {
+			t.Errorf("%s: 路由无效 %q", def.Name, def.Route)
 		}
 	}
 }
@@ -47,8 +55,9 @@ func TestDestructiveToolsRequireConfirm(t *testing.T) {
 	}
 }
 
-// TestRouteContract 路由契约：注册表全部路由必须命中 DPanel v1.11.1 live 实测验证集。
+// TestRouteContract 路由契约：注册表全部转发类路由必须命中 DPanel v1.11.1 live 实测验证集。
 // 上游重命名/删除路由时此测试立刻红，防止「注册表悄悄失效」。
+// 本地执行工具（Execute != nil，无 Route）豁免。
 func TestRouteContract(t *testing.T) {
 	// DPanel v1.11.1 全量 188 条路由（源码 provider.go 提取 + 真实实例探测验证）
 	verified := map[string]bool{}
@@ -56,6 +65,9 @@ func TestRouteContract(t *testing.T) {
 		verified[r] = true
 	}
 	for _, def := range Registry {
+		if def.Execute != nil {
+			continue // 本地执行工具不走面板路由
+		}
 		if !verified[def.Route] {
 			t.Errorf("%s: 路由 %s 不在 v1.11.1 验证集（上游已改名/删除？）", def.Name, def.Route)
 		}

@@ -24,7 +24,7 @@ import (
 )
 
 // Version 与 DPanel 对齐的版本号。
-const Version = "1.11.1-mcp6"
+const Version = "1.11.1-mcp7"
 
 // ToolDef 工具注册表表项。
 type ToolDef struct {
@@ -40,6 +40,10 @@ type ToolDef struct {
 	// PreCheck 本地前置校验：参数组合在上游必然失败（如走 WebSocket 管道的
 	// 路由）时，在转发前报清晰错误，避免 agent 撞上游 500。
 	PreCheck func(args map[string]any) error
+	// Execute 本地执行（不走面板 API 转发）：Route 必须为空。
+	// 用于面板 API 依赖 WebSocket 会话而 MCP 回环调用无法满足的场景
+	// （如 image pull 的 ws progress fd）。参数已过 buildPayload 归一化。
+	Execute func(ctx context.Context, payload map[string]any) (any, error)
 }
 
 // ParamDef 工具参数定义。
@@ -77,6 +81,9 @@ type Dispatcher struct {
 
 // RegisterAll 把注册表全部工具挂到 MCP server。
 func RegisterAll(s *server.MCPServer, api *client.Client, gate *profile.Gate) {
+	// 注入面板 API client 给本地执行工具（如 dpanel_image_pull 读镜像源配置）。
+	// 漏掉这行会让本地工具的代理回退静默失效（loadRegistryRows 恒报未注入）。
+	dispatcherAPIClient = api
 	d := &Dispatcher{api: api, gate: gate}
 	for _, def := range Registry {
 		def := def
@@ -153,10 +160,18 @@ func (d *Dispatcher) handler(def ToolDef) server.ToolHandlerFunc {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		// 5. 转发 DPanel API
-		data, err := d.api.Post(ctx, def.Route, payload)
-		if err != nil {
-			return mcp.NewToolResultErrorFromErr("DPanel API 调用失败", err), nil
+		// 5. 执行：本地工具走 Execute，其余转发 DPanel API
+		var data any
+		if def.Execute != nil {
+			data, err = def.Execute(ctx, payload)
+			if err != nil {
+				return mcp.NewToolResultErrorFromErr("本地执行失败", err), nil
+			}
+		} else {
+			data, err = d.api.Post(ctx, def.Route, payload)
+			if err != nil {
+				return mcp.NewToolResultErrorFromErr("DPanel API 调用失败", err), nil
+			}
 		}
 		// 6. 响应后处理（如 container_stat 按容器 id 过滤）
 		if def.PostProcess != nil {

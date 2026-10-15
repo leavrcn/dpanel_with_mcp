@@ -1,10 +1,10 @@
 # DPanel with MCP
 
-**DPanel with built-in MCP Server** —— 把 MCP（Model Context Protocol）直接内置进 DPanel 的单容器发行版。AI Agent 用自然语言管理 Docker：容器、compose、镜像、网络、卷、文件、计划任务等 99 个工具。
+**DPanel with built-in MCP Server** —— 把 MCP（Model Context Protocol）直接内置进 DPanel 的单容器发行版。AI Agent 用自然语言管理 Docker：容器、compose、镜像、网络、卷、文件、计划任务等 100 个工具。
 
 基于 [donknap/dpanel](https://github.com/donknap/dpanel)（对齐 1.11.x），MCP 模块位于 `app/mcp/`（同仓子模块）。
 
-**版本**: v1.11.1-mcp6（基线 DPanel v1.11.1，MCP 第 6 版）
+**版本**: v1.11.1-mcp7（基线 DPanel v1.11.1，MCP 第 7 版）
 
 ---
 
@@ -39,7 +39,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
     },
     "serverInfo": {
       "name": "dpanel-mcp",
-      "version": "1.11.1-mcp6"
+      "version": "1.11.1-mcp7"
     }
   }
 }
@@ -51,7 +51,7 @@ curl -H "Authorization: Bearer ***" http://localhost:8807/dpanel/mcp
 # 构建镜像（CE lite）
 docker build --target lite \
   -t dpanel-with-mcp:local \
-  --build-arg APP_VERSION=1.11.1-mcp6 \
+  --build-arg APP_VERSION=1.11.1-mcp7 \
   --build-arg APP_FAMILY=ce \
   -f docker/Dockerfile .
 
@@ -75,8 +75,8 @@ docker run -d \
 
 ## 🎯 核心特性
 
-- **99 个工具**：容器/镜像/网络/卷/compose/计划任务/文件管理
-- **三级权限**：read-only(45) / read-write(78) / admin(99)
+- **100 个工具**：容器/镜像/网络/卷/compose/计划任务/文件管理
+- **三级权限**：read-only(45) / read-write(79) / admin(100)
 - **安全鉴权**：Bearer token + fail-closed + 25 个敏感键脱敏
 - **单容器**：MCP server 内置于 DPanel 本体，`git merge upstream` 一条命令跟随上游
 
@@ -137,8 +137,8 @@ docker restart dpanel
 | Profile | 工具数 | 权限范围 | 适用场景 |
 |---------|--------|----------|----------|
 | `read-only` | 45 | 查询、列表、导出 | 纯监控/仪表盘 |
-| `read-write` | 78 | + 启动/停止/创建/更新 | **日常运维（推荐）** |
-| `admin` | 99 | + 删除/销毁/清理 | 完全自动化（高风险） |
+| `read-write` | 79 | + 启动/停止/创建/更新 | **日常运维（推荐）** |
+| `admin` | 100 | + 删除/销毁/清理 | 完全自动化（高风险） |
 
 ---
 
@@ -226,6 +226,15 @@ make build-full  # full 版（含前端）
 > **版本方案**：`<上游基线>-mcp<N>`，如 `1.11.1-mcp6` = 基于 DPanel v1.11.1 的第 6 个 MCP 版本。
 > 上游发新版后计数器重置（如 DPanel 1.11.2 → `v1.11.2-mcp1`）。历史版本曾用
 > `1.11.2~1.11.6-mcp` 递增命名，自本版起废弃（那些版本号在上游并不存在，易误导）。
+
+### v1.11.1-mcp7 (2026-10-16)
+
+- 新增 `dpanel_image_pull` 工具（第 100 个）：同步拉取镜像到本地，含面板
+  镜像源代理回退。修复 MCP 通道无法 pull 镜像的缺口——面板
+  `/app/image/tag-sync` 的 pull 依赖 WebSocket progress fd，MCP 回环调用
+  无 ws 会话必报 `fd not found`。新工具在 MCP 进程内直接调 docker SDK，
+  镜像源配置经面板 API 读取（与面板 Web UI 同源），拉取后返回本地
+  imageId 供验证
 
 ### v1.11.1-mcp6 (2026-10-14)
 

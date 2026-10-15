@@ -12,7 +12,7 @@
 
 services:
   dpanel:
-    image: ghcr.io/leavrcn/dpanel:1.11.1-mcp6
+    image: ghcr.io/leavrcn/dpanel:1.11.1-mcp7
     container_name: dpanel
     restart: always
     ports:
@@ -24,7 +24,7 @@ services:
       - DP_MCP_ENABLE=${DP_MCP_ENABLE:-true}
       # Bearer token（openssl rand -hex 32 生成，走 .env 勿提交 git）
       - DP_MCP_TOKEN=${DP_MCP_TOKEN:?请在 .env 中设置 DP_MCP_TOKEN}
-      # 能力分级：read-only(45 工具) / read-write(78) / admin(99)
+      # 能力分级：read-only(45 工具) / read-write(79) / admin(100)
       - DP_MCP_PROFILE=${DP_MCP_PROFILE:-read-write}
       # 面板账号（MCP 回环调用用；或删掉这两行走 API 录入路径）
       - DP_MCP_SERVICE_USERNAME=${DP_MCP_SERVICE_USERNAME:?请在 .env 中设置}

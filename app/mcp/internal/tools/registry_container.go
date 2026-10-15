@@ -154,7 +154,7 @@ func init() {
 		},
 		{
 			Name:        "dpanel_container_upgrade",
-			Description: "升级容器（拉新镜像并重建，保留配置）。image_tag 留空用原镜像",
+			Description: "用本地已有镜像重建容器（保留配置）。不 pull 新镜像——需更新镜像时先调 dpanel_image_pull。image_tag 留空用原镜像",
 			Route:       "/app/container-upgrade/upgrade",
 			Params: []ParamDef{
 			{Name: "md5", Type: "string", Description: "", Required: true},

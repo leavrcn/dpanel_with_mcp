@@ -6,7 +6,7 @@
 //	 ├─ /dpanel/api/*            原有面板 API（JWT，不动）
 //	 ├─ /dpanel/mcp              MCP streamable-http 端点（Bearer 门禁）
 //	 │     └─ mcp-go StreamableHTTPServer
-//	 │           └─ Dispatcher（99 工具注册表）
+//	 │           └─ Dispatcher（100 工具注册表）
 //	 │                 └─ HTTP 回环 127.0.0.1:<port> 调 DPanel 自己的 API
 //	 └─ /dpanel/api/common/mcp/* 管理面（用户 JWT）：token/profile/开关
 //
